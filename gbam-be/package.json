@@ -1,0 +1,40 @@
+{
+  "name": "gbam-be",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/app.ts",
+  "scripts": {
+    "dev": "nodemon --exec ts-node src/app.ts",
+    "seed": "ts-node scripts/seed.ts",
+    "prevention": "ts-node prisma/seed_prevention.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "generate": "dotenv -e .env.local -- prisma generate"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.6.5",
+  "dependencies": {
+    "@prisma/client": "^6.18.0",
+    "@socket.io/redis-adapter": "^8.3.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "ioredis": "^5.8.2",
+    "jsonwebtoken": "^9.0.2",
+    "luxon": "^3.7.2",
+    "mongodb": "^6.20.0",
+    "prisma": "^6.18.0",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/luxon": "^3.7.1",
+    "@types/node": "^24.9.1",
+    "nodemon": "^3.1.10",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}
