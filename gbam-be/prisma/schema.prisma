@@ -1,0 +1,202 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  username      String  @unique
+  walletAddress String  @unique
+  displayName   String?
+  avatarUrl     String?
+  bio           String?
+
+  xLink     String? // X(Twiiter) Link
+  otherLink String[] @default([]) // Other social links
+
+  xp         Int    @default(0)
+  gbmBalance BigInt @default(0) // off chain mirror for quick reads
+
+  // social graph
+  followers Follow[] @relation("followee")
+  following Follow[] @relation("follower")
+
+  // authored memes
+  memes Meme[]
+
+  // convenience
+  // @@index([username])
+  // @@index([walletAddress])
+}
+
+model Follow {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt DateTime @default(now())
+
+  followerId String @db.ObjectId
+  followeeId String @db.ObjectId
+
+  follower User @relation("follower", fields: [followerId], references: [id])
+  followee User @relation("followee", fields: [followeeId], references: [id])
+
+  @@unique([followerId, followeeId])
+  @@index([followeeId])
+  @@index([followerId])
+}
+
+model Meme {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  authorId String @db.ObjectId
+  author   User   @relation(fields: [authorId], references: [id])
+
+  // store file in object storage or CDN, keep reference here
+  mediaUrl  String
+  mediaHash String // IPFS or content hash for integrity verification
+  caption   String?
+
+  upCount   Int @default(0)
+  downCount Int @default(0)
+
+  @@index([authorId, createdAt])
+  @@index([createdAt])
+}
+
+model MemeVote {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt DateTime @default(now())
+
+  memeId String @db.ObjectId
+  userId String @db.ObjectId
+  vote   Int // 1 for like, -1 for dislike
+
+  @@unique([memeId, userId])
+  @@index([memeId])
+  @@index([userId])
+}
+
+model QuizCategory {
+  id   String @id @default(auto()) @map("_id") @db.ObjectId
+  name String @unique
+  slug String @unique
+
+  // questions in this category
+  questions QuizPoolQuestion[]
+}
+
+model QuizPoolQuestion {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt DateTime @default(now())
+
+  categoryId String       @db.ObjectId
+  category   QuizCategory @relation(fields: [categoryId], references: [id])
+
+  question    String
+  rightAnswer String
+  wrongAnswer String // single wrong for MVP, can switch to string[] later
+
+  @@index([categoryId])
+}
+
+model DailyQuiz {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  dayKey      String   @unique            // for example 2025-10-24
+  questionIds String[] @db.ObjectId       // questions chosen for the day
+  packHash    String
+  createdAt   DateTime @default(now())
+}
+
+model QuizAttempt {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt DateTime @default(now())
+
+  dayKey       String // e.g. "2024-10-05"
+  userId       String @db.ObjectId
+  correctCount Int
+  earnedGBM    BigInt @default(0)
+
+  // allow one rewardable attempt per day per user
+  @@unique([dayKey, userId])
+  @@index([userId, dayKey])
+}
+
+model Earnings {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt DateTime @default(now())
+
+  userId    String @db.ObjectId
+  source    String // e.g. "quiz", "meme_upvote", etc.
+  amountGBM BigInt
+  dayKey    String // e.g. "2024-10-05"
+
+  @@index([userId, createdAt])
+}
+
+model LeaderboardSnapShot {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  period    String // e.g. "daily", "weekly", "monthly", "quarterly", "yearly"
+  periodKey String // e.g. "2025-W43", "2025-10", "2024-Q4", "2025"
+  createdAt DateTime @default(now())
+
+  // store top N in a compact doc for fast reads
+  entries LeaderboardEntry[]
+
+  @@unique([period, periodKey])
+}
+
+type LeaderboardEntry {
+  userId   String @db.ObjectId
+  username String
+  xp       Int
+  gbm      BigInt
+  rank     Int
+}
+
+model Message {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  sessionId String // conversation id, deterministic per user pair or group
+  createdAt DateTime @default(now())
+
+  fromUserId String @db.ObjectId
+  toUserId   String @db.ObjectId
+
+  kind      String // "text", "image", etc.
+  body      String? // for text, already sanitized
+  mediaUrl  String? // for image or other media types
+  mediaHash String? // IPFS or content hash for integrity verification
+  read      Boolean @default(false)
+
+  @@index([sessionId, createdAt])
+  @@index([toUserId, read])
+}
+
+model Conversation {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  sessionId  String   @unique
+  aUserId    String   @db.ObjectId
+  bUserId    String   @db.ObjectId
+  boxForA    String // "primary" or "requests"
+  lastAt     DateTime @default(now())
+  lastMsg    String?
+  unreadForA Int      @default(0)
+  unreadForB Int      @default(0)
+
+  @@index([aUserId, lastAt])
+  @@index([bUserId, lastAt])
+}
